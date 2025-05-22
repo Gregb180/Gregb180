@@ -1,14 +1,11 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { kv } from "@vercel/kv"
 import { nanoid } from "nanoid"
 
-// This will be used later when we add embedding functionality
-// import { generateEmbedding } from "@/lib/embeddings"
-
-// Simple in-memory storage for now (replace with your database)
-// const quotes = new Map()
+// Simple in-memory storage (this will reset on server restart)
+// In production, you would use a database
+const quotesStore: Record<string, any> = {}
 
 export async function submitQuote(formData: FormData) {
   try {
@@ -30,30 +27,21 @@ export async function submitQuote(formData: FormData) {
       phone,
       serviceDescription,
       hasPhoto: !!photo,
-      photoUrl: photo ? `/api/quotes/${id}/photo` : null, // We'll implement this endpoint later
+      photoUrl: photo ? `/api/quotes/${id}/photo` : null,
       createdAt: new Date().toISOString(),
-      // This is where we would store the embedding vector when implemented
-      // embedding: null,
       status: "pending",
       matches: [],
     }
 
-    // Store the quote (using Vercel KV for simplicity)
-    await kv.set(`quote:${id}`, JSON.stringify(quote))
+    // Store the quote in memory
+    quotesStore[id] = quote
 
     // If there's a photo, we would handle it here
     // For now, we'll just log it
     if (photo) {
       console.log(`Photo received for quote ${id}`)
       // In a real implementation, you would upload this to a storage service
-      // and update the quote with the photo URL
     }
-
-    // Future enhancement: Generate embedding for the service description
-    // if (process.env.OPENAI_API_KEY) {
-    //   const embedding = await generateEmbedding(serviceDescription)
-    //   await kv.set(`quote:${id}:embedding`, JSON.stringify(embedding))
-    // }
 
     // Revalidate the quotes page
     revalidatePath("/quotes")
@@ -67,22 +55,10 @@ export async function submitQuote(formData: FormData) {
 }
 
 export async function getQuotes() {
-  // This is a simplified implementation
-  // In a real app, you would query your database
-  const keys = await kv.keys("quote:*")
-  const quotes = []
-
-  for (const key of keys) {
-    if (!key.includes(":embedding")) {
-      const quote = await kv.get(key)
-      if (quote) quotes.push(JSON.parse(quote as string))
-    }
-  }
-
-  return quotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  // Return quotes from in-memory store
+  return Object.values(quotesStore).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
 export async function getQuoteById(id: string) {
-  const quote = await kv.get(`quote:${id}`)
-  return quote ? JSON.parse(quote as string) : null
+  return quotesStore[id] || null
 }

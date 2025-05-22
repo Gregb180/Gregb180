@@ -8,7 +8,14 @@ export const metadata = {
 }
 
 export default async function DashboardPage() {
-  const quotes = await getQuotes()
+  // Get quotes with error handling
+  let quotes = []
+  try {
+    quotes = await getQuotes()
+  } catch (error) {
+    console.error("Error fetching quotes:", error)
+    // Continue with empty quotes array
+  }
 
   return (
     <div className="container py-10">
